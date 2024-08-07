@@ -31,6 +31,10 @@ import LocalAuthentication
 
 public let KeychainAccessErrorDomain = "com.kishikawakatsumi.KeychainAccess.error"
 
+public enum KeychainError: Error {
+    case accessControlCreationFailed(OSStatus)
+}
+
 public enum ItemClass {
     case genericPassword
     case internetPassword
@@ -1379,18 +1383,18 @@ extension Options {
         }
 
         if let policy = authenticationPolicy {
-            if #available(macOS 10.10, *) {
+            if #available(iOS 9.0, macOS 10.10, *) {
                 var error: Unmanaged<CFError>?
-                guard let accessControl = SecAccessControlCreateWithFlags(kCFAllocatorDefault, accessibility.rawValue as CFTypeRef, SecAccessControlCreateFlags(rawValue: CFOptionFlags(policy.rawValue)), &error) else {
+                guard let accessControl = SecAccessControlCreateWithFlags(nil, accessibility.rawValue as CFTypeRef, SecAccessControlCreateFlags(rawValue: CFOptionFlags(policy.rawValue)), &error) else {
                     if let error = error?.takeUnretainedValue() {
-                        return (attributes, error.error)
+                        return (attributes, KeychainError.accessControlCreationFailed(OSStatus(CFErrorGetCode(error))))
+                    } else {
+                        return (attributes, Status.unexpectedError)
                     }
-
-                    return (attributes, Status.unexpectedError)
                 }
-                attributes[AttributeAccessControl] = accessControl
+                attributes[kSecAttrAccessControl as String] = accessControl
             } else {
-                print("Unavailable 'Touch ID integration' on macOS versions prior to 10.10.")
+                print("Unavailable 'Touch ID integration' on iOS versions prior to iOS 9.0/macOS 10.10 or in app extensions.")
             }
         } else {
             attributes[AttributeAccessible] = accessibility.rawValue
